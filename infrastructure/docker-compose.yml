@@ -1,0 +1,74 @@
+version: "3.8"
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: alfred-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: alfred
+      POSTGRES_PASSWORD: alfred_secret_password
+      POSTGRES_DB: alfred_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U alfred -d alfred_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ALFRED AI Backend API
+  backend:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.backend
+    container_name: alfred-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://alfred:alfred_secret_password@postgres:5432/alfred_db
+      ALFRED_CAPABILITY_SECRET: alfred-deterministic-master-secret-key-change-in-prod-5847382910
+      ALFRED_COMPANION_SECRET: alfred-companion-secure-token-local-99218204
+      COMPANION_URL: http://local-companion:8001
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Local Companion PC Filesystem Agent
+  local-companion:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.companion
+    container_name: alfred-companion
+    restart: unless-stopped
+    environment:
+      ALFRED_COMPANION_SECRET: alfred-companion-secure-token-local-99218204
+      ALFRED_SANDBOX_DIR: /workspace_sandbox
+      COMPANION_PORT: 8001
+    ports:
+      - "8001:8001"
+    volumes:
+      - companion_sandbox:/workspace_sandbox
+
+  # Next.js Cybersecurity Frontend Dashboard
+  frontend:
+    build:
+      context: ..
+      dockerfile: infrastructure/Dockerfile.frontend
+    container_name: alfred-frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  companion_sandbox:

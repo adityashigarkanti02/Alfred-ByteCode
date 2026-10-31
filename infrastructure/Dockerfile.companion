@@ -1,0 +1,21 @@
+# ALFRED AI - Local Companion Filesystem Container
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install dependencies
+COPY local-companion/requirements.txt ./requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy companion source
+COPY local-companion /app/local-companion
+
+ENV PYTHONPATH="/app/local-companion"
+ENV COMPANION_PORT=8001
+ENV ALFRED_SANDBOX_DIR="/workspace_sandbox"
+
+RUN mkdir -p /workspace_sandbox
+
+EXPOSE 8001
+
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001"]
